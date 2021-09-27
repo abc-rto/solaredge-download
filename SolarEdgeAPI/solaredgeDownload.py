@@ -8,19 +8,19 @@ import os
 
 # Set granularity required (multiple selections are allowed)
 data30min = False
-data1hour = True
+data1hour = False
 dataDaily = True
 dataMonthly = False
 
 # Define SolarEdge devices to be queried
 devices = [
-    # {'id': 2384458, 'apikey': 'FZHDW756GBLH5CCTG2TS5UUZS9QUVFMK', 'house': 10},
-    # {'id': 2274372, 'apikey': '5ZOGJGOZ4ZXMFP9QHD3UYRM4T8H64VH1', 'house': 14},
+    {'id': 2384458, 'apikey': 'FZHDW756GBLH5CCTG2TS5UUZS9QUVFMK', 'house': 10},
+    {'id': 2274372, 'apikey': '5ZOGJGOZ4ZXMFP9QHD3UYRM4T8H64VH1', 'house': 14},
     {'id': 2055689, 'apikey': '4ATE07E0ZGRPGKPKLUBOUJFXZMHPQXK9', 'house': 17},
     {'id': 1816420, 'apikey': 'AD3375GQD9ZZMURNQAY42TUZ2C03CMR3', 'house': 19},
-    #{'id': 2384874, 'apikey': 'LA804POO6SL8G8EKB2EC3IYI5RMFNBXE', 'house': 22},
-    # {'id': 2243196, 'apikey': '2RVNDJ2MA5STRHJSXPKQ4OXQMFFNY6RM', 'house': 23},
-    # {'id': 2401661, 'apikey': 'ZWW4AYR5T2HI7K4FKAQX3FZ1EE62O5N4', 'house': 24}
+    {'id': 2384874, 'apikey': 'LA804POO6SL8G8EKB2EC3IYI5RMFNBXE', 'house': 22},
+    {'id': 2243196, 'apikey': '2RVNDJ2MA5STRHJSXPKQ4OXQMFFNY6RM', 'house': 23},
+    {'id': 2401661, 'apikey': 'ZWW4AYR5T2HI7K4FKAQX3FZ1EE62O5N4', 'house': 24}
 ]
 
 # 15min API returns max one month of data. This utility function converts start and end dates
@@ -80,9 +80,10 @@ def downloadEnergyData(id, apikey):
                 meterName = meter.get('type')
                 meterValues = json.dumps(meter.get('values'))
                 df = pd.read_json(meterValues)
-                df.columns = ['date', 'values-' + meterName]
+                df.columns = ['date', 'values-' + meterName + '-' + str(id)]
                 dfTotal['date'] = df['date']
-                dfTotal['values-' + meterName] = df['values-' + meterName]
+                dfTotal['values-' + meterName + '-' +
+                        str(id)] = df['values-' + meterName + '-' + str(id)]
 
             if not os.path.isfile(str(id) + '/' + str(id) + '-15min.csv'):
                 dfTotal.to_csv(str(id) + '/' + str(id) +
@@ -132,5 +133,31 @@ def downloadEnergyData(id, apikey):
                                    '-monthly.csv', mode='a', header=False)
 
 
+def mergeDailyFiles(files):
+    df = pd.DataFrame()
+    for i, file in enumerate(files):
+        if i == 0:
+            df = pd.read_csv(file)
+        else:
+            df = pd.merge(df, pd.read_csv(file), on='date', how='outer', left_index=False, right_index=False)
+
+    print(df.columns)
+    for i, column in enumerate(df.columns):
+        if 'Unnamed' in column:
+            print(column)
+            try:
+             df.drop(column, axis=1, inplace=True)
+            except:
+             break
+   
+    df.fillna(0)
+    df = df.sort_values(by=['date'], ascending=True)
+    df.to_csv('testing.csv', index=False)
+
+
+files = []
 for device in devices:
     downloadEnergyData(device.get('id'), device.get('apikey'))
+    files.append('./' + str(device.get('id')) + '/' + str(device.get('id')) +'-daily.csv')
+
+mergeDailyFiles(files)
